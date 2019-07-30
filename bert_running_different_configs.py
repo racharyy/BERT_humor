@@ -37,7 +37,7 @@ dataset_specific_config = {
         "pom":{'text_indices':(0,300),'audio_indices':(300,343),'video_indices':(343,386),'max_seq_len':21},
         "youtube":{'text_indices':(0,300),'audio_indices':(300,374),'video_indices':(374,409),'max_seq_len':21},
         "MRPC":{},
-        "Humor":{'output_mode':'regression','label_list':[None],'dev_batch_size':22,'test_batch_size':68,'story_size':20}
+        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':68,'story_size':20}
         }
 
 #sacred will generate a different random _seed for every experiment

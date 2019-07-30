@@ -476,14 +476,16 @@ def train_epoch(model,train_dataloader,optimizer,_config):
         nb_tr_examples, nb_tr_steps = 0, 0
         for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
             batch = tuple(t.to(_config["device"]) for t in batch)
-            input_ids, input_mask, segment_ids, label_ids = batch
-
+            #print(batch)
+            input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
+            #print(input_ids.shape,input_mask.shape,segment_ids.shape)
             input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
             input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
             segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
             # define a new function to compute loss values for both output_modes
+            
             logits = model(input_ids, segment_ids, input_mask, labels=None)
-
+            
             if _config["output_mode"] == "classification":
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, _config["num_labels"]), label_ids.view(-1))
@@ -505,6 +507,8 @@ def train_epoch(model,train_dataloader,optimizer,_config):
                 optimizer.step()
                 optimizer.zero_grad()
                 #global_step += 1   
+                
+            
         return tr_loss
 
 
@@ -556,12 +560,14 @@ def eval_epoch(model,dev_dataloader,optimizer,_config):
             batch = tuple(t.to(_config["device"]) for t in batch)
 
             input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
-            visual = torch.squeeze(visual,1)
-            acoustic = torch.squeeze(acoustic,1)
+            
+            input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
+            input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
+            segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
             #print("visual:",visual.shape," acoustic:",acoustic.shape," model type:",type(model))
             #assert False
             # define a new function to compute loss values for both output_modes
-            logits = model(input_ids, visual,acoustic,segment_ids, input_mask, labels=None)
+            logits = model(input_ids, segment_ids, input_mask, labels=None)
 
 
             if _config["output_mode"] == "classification":
@@ -713,7 +719,7 @@ def train(model, train_dataloader, validation_dataloader,test_data_loader,optimi
         #print("\nepoch:{},train_loss:{}".format(epoch_i,train_loss))
         _run.log_scalar("training.loss", train_loss, epoch_i)
 
-
+        
         valid_loss = eval_epoch(model, validation_dataloader,optimizer)
         _run.log_scalar("dev.loss", valid_loss, epoch_i)
         
@@ -722,7 +728,7 @@ def train(model, train_dataloader, validation_dataloader,test_data_loader,optimi
         
         valid_losses.append(valid_loss)
         print("\nepoch:{},train_loss:{}, valid_loss:{}".format(epoch_i,train_loss,valid_loss))
-
+        '''
         model_state_dict = model.state_dict()
         checkpoint = {
             'model': model_state_dict,
@@ -741,7 +747,7 @@ def train(model, train_dataloader, validation_dataloader,test_data_loader,optimi
                     test_accuracy = test_score_model(model,test_data_loader)
                     _run.log_scalar("test_per_epoch.acc", test_accuracy, epoch_i)
     #After the entire training is over, save the best model as artifact in the mongodb
-    
+        '''
     
 @bert_humor_ex.automain
 def main(_config):
@@ -752,7 +758,7 @@ def main(_config):
     
     model,optimizer,tokenizer = prep_for_training(num_train_optimization_steps)
 
-    #train(model, train_data_loader,dev_data_loader,test_data_loader,optimizer)
+    train(model, train_data_loader,dev_data_loader,test_data_loader,optimizer)
     # assert False
 
     #TODO:need to fix it

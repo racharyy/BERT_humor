@@ -282,12 +282,12 @@ class  Summary_AV(nn.Module):
         self.audio_LSTM = nn.LSTM(input_size = newly_added_config["d_acoustic_in"],\
                                                        hidden_size = newly_added_config['h_audio_lstm'],batch_first=True)
         self.video_LSTM = nn.LSTM(input_size = newly_added_config["d_visual_in"],\
-                                                       hidden_size = newly_added_config['h_video_lstm'],batch_first=True)
         
         
         
         
 
+                                                       hidden_size = newly_added_config['h_video_lstm'],batch_first=True)
     def forward(self, classification_embedding,acoustic,visual):
         
         h_aud = torch.zeros(classification_embedding.shape[0],\
@@ -1327,19 +1327,24 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
         self.newly_added_config = newly_added_config
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.storyteller = nn.LSTMCell(config.hidden_size, newly_added_config['story_size'])####Need to add story size
+        self.storyteller = nn.LSTM(768, newly_added_config['story_size'],batch_first = True) #nn.LSTMCell(config.hidden_size, newly_added_config['story_size'])####Need to add story size
         self.sigmoid = nn.Sigmoid()
         self.classifier = nn.Linear(newly_added_config['story_size'], num_labels)
         self.apply(self.init_bert_weights)
-        print("Inside the seq classification class")
+        print("Inside the Humor detection class")
         #assert False
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None, has_context = None):
         _, pooled_output = self.bert(input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False)
         pooled_output = self.dropout(pooled_output)
-
-        h_init = torch.zeros(input_ids.size(0), self.config.hidden_size, dtype=torch.double)
-        c_init = torch.zeros(input_ids.size(0), self.config.hidden_size, dtype=torch.double)
+        #print('======================')
+        #print(pooled_output.shape)
+        #print(pooled_output)
+        h_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
+        c_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
+        
+        #h_init = torch.zeros(input_ids.size(0), self.config.hidden_size, dtype=torch.double)
+        #c_init = torch.zeros(input_ids.size(0), self.config.hidden_size, dtype=torch.double)
 
         if has_context:
             pooled_output = torch.reshape(-1,6,config.hidden_size)
@@ -1353,7 +1358,10 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
             logits = torch.reshape([prob,1-prob],-1,self.num_labels)
 
         else:
-            punchline_story = self.classifier(self.storyteller(pooled_output,(h_init,c_init)))
+            pooled_output = torch.reshape(pooled_output,(-1,1,768))
+            #print(pooled_output.shape)
+            punchline_story,_ = self.storyteller(pooled_output,(h_init,c_init))
+            #print(punchline_story.shape)
             logits = self.classifier(punchline_story)
 
         if labels is not None:
