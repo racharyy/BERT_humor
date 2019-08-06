@@ -1334,20 +1334,48 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
         print("Inside the Humor detection class")
         #assert False
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None, has_context = None):
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None):
         _, pooled_output = self.bert(input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False)
         pooled_output = self.dropout(pooled_output)
         #print('======================')
-        #print(pooled_output.shape)
-        #print(pooled_output)
-        h_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
-        c_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
         
+        #print(pooled_output)
+       
         #h_init = torch.zeros(input_ids.size(0), self.config.hidden_size, dtype=torch.double)
         #c_init = torch.zeros(input_ids.size(0), self.config.hidden_size, dtype=torch.double)
-
-        if has_context:
-            pooled_output = torch.reshape(-1,6,config.hidden_size)
+        #print("==============================================")
+        if self.newly_added_config['has_context']:
+            #print("+++++++++++++++++++++++")
+            pooled_output = torch.reshape(pooled_output,(-1,6,768))
+            h_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
+            c_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
+            #print(h_init.shape)
+            context = pooled_output[:,0:5,:]
+            punchline =  torch.reshape(pooled_output[:,5,:],(-1,1,768))
+            #print(context.shape," context shape")
+            #print("==============================================")
+            #print(punchline.shape," punchline shape")
+            
+            _,(context_story,_) = self.storyteller(context,(h_init,c_init))
+            _,(punchline_story,_) = self.storyteller(punchline,(h_init,c_init))
+            context_story, punchline_story = torch.reshape(context_story,(-1,self.newly_added_config['story_size'])), torch.reshape(punchline_story,(-1,self.newly_added_config['story_size']))
+            #print(punchline_story.shape,context_story.shape)
+            distance = torch.exp(-torch.norm(context_story - punchline_story,p=2,dim=1))
+            #print(distance)
+            
+            #print("story extraction done --------------------------")
+            #print(torch.ones(distance.shape[0])-distance ) 
+            #print("*************************")
+            distance = torch.reshape(distance,(-1,1))
+            #print("before adding {0}".format(distance.shape))
+            logits = distance.repeat(1,2)
+            
+            #print("After adding {0}".format(logits.shape))
+            logits[:,1]= 1-logits[:,1]
+            #print(logits)
+            #assert(False)
+           # print("Here is the distance")
+            '''
             h_t,c_t = h_init,c_init
             for i in xrange(5):
                 h_t, c_t = self.storyteller(pooled_output[:,i,:],(h_t,c_t))
@@ -1356,9 +1384,13 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
             distance = torch.norm(context_story - punchline_story,p=2,dim=1)
             prob = self.sigmoid(distance)
             logits = torch.reshape([prob,1-prob],-1,self.num_labels)
+            '''
 
         else:
             pooled_output = torch.reshape(pooled_output,(-1,1,768))
+            h_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
+            c_init = torch.zeros(pooled_output.shape[0],self.newly_added_config['story_size']).unsqueeze(0).to(self.newly_added_config["device"])
+            print(h_init.shape)
             #print(pooled_output.shape)
             punchline_story,_ = self.storyteller(pooled_output,(h_init,c_init))
             #print(punchline_story.shape)

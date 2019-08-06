@@ -152,7 +152,7 @@ def cnf():
     do_lower_case=True
     cache_dir=None
     max_seq_length=128
-    train_batch_size=32
+    train_batch_size=12
     learning_rate=5e-5
     num_train_epochs=40.0
     seed=None
@@ -176,7 +176,7 @@ def cnf():
     test_batch_size=None
     shuffle=True
     num_workers=2
-    best_model_path =  "/scratch/mhasan8/saved_models_from_projects/bert_transformer/"+str(node_index) +"_best_model.chkpt"
+    best_model_path =  "/scratch/achattor/saved_models_from_projects/bert_humor/"+str(node_index) +"_best_model.chkpt"
     loss_function="ll1"
     save_model=True
     save_mode='best'
@@ -192,8 +192,11 @@ def cnf():
     hidden_dropout_prob=0
     beta_shift=0#####Change properly
     story_size=None
+    prototype_datasize = 200
+    has_context=None
     if prototype:
-        num_train_epochs=2
+        num_train_epochs=40
+        
         
     
 
@@ -216,7 +219,7 @@ def multi_collate(batch):
 
 @bert_humor_ex.capture
 def convert_examples_to_features(examples, label_list, max_seq_length,
-                                 tokenizer, output_mode,_config,has_context = None):
+                                 tokenizer, output_mode,_config):
     """Loads a data file into a list of `InputBatch`s."""
     #print("label_list:",label_list)
 
@@ -246,11 +249,17 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             token_cur=token_cur[:max_seq_length-2]
         tokens = [token_cur]
         #print(len(token_cur),"+++++++++++++")
-        '''
-        if has_context:
-            cont_list = []
-            for i in range(5):
-                contexti_token = tokenizer.tokenize(example.text_context[i])
+        
+        if _config['has_context']:
+            
+            num_context = len(example.text_context)
+            if num_context<5:
+                cont_list = [[] for bad in range(5-num_context)]
+            else:
+                cont_list = []
+            for i in range(num_context):
+                #print(example.text_context[i])
+                contexti_token, token_inversions_cur  = tokenizer.tokenize(example.text_context[i],invertable=True)
                 # Account for [CLS] and [SEP] with "- 2"
                 if len(contexti_token) > max_seq_length - 2:
                     contexti_token = contexti_token[:(max_seq_length - 2)]
@@ -259,7 +268,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             # Account for [CLS], [SEP], [SEP] with "- 3"
             #_truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
             tokens = cont_list+tokens
-        '''
+        
 
         # The convention in BERT is:
         # (a) For sequence pairs:
@@ -284,6 +293,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         for i in range(num_sent):
 
             tokens[i] = ["[CLS]"] + tokens[i] + ["[SEP]"] 
+            #print(tokens[i])
+            #print("==============================================")
             input_id, segment_id = tokenizer.convert_tokens_to_ids(tokens[i]), [0] * len(tokens[i])
             # The mask has 1 for real tokens and 0 for padding tokens. Only real
             # tokens are attended to.
@@ -350,7 +361,7 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
 @bert_humor_ex.capture
 def get_appropriate_dataset(data,tokenizer, output_mode,_config):
     features = convert_examples_to_features(
-            data, _config["label_list"],_config["max_seq_length"], tokenizer, output_mode)
+            data, _config["label_list"],_config["max_seq_length"], tokenizer, output_mode,_config)
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
@@ -394,9 +405,9 @@ def set_up_data_loader(_config):
     test_data=all_data["test"]
     
     if(_config["prototype"]):
-        train_data=train_data[:100]
-        dev_data=dev_data[:100]
-        test_data=test_data[:100]     
+        train_data=train_data[:_config["prototype_datasize"]]
+        dev_data=dev_data[:_config["prototype_datasize"]]
+        test_data=test_data[:_config["prototype_datasize"]]     
     
     
     tokenizer = BertTokenizer.from_pretrained(_config["bert_model"], do_lower_case=_config["do_lower_case"])
@@ -478,13 +489,20 @@ def train_epoch(model,train_dataloader,optimizer,_config):
             batch = tuple(t.to(_config["device"]) for t in batch)
             #print(batch)
             input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
-            #print(input_ids.shape,input_mask.shape,segment_ids.shape)
-            input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
-            input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
-            segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
-            # define a new function to compute loss values for both output_modes
+          
+            #input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
+            #input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
+            #segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
             
-            logits = model(input_ids, segment_ids, input_mask, labels=None)
+            #input_ids=input_ids.view(-1,_config["max_seq_length"])
+            #input_mask=input_mask.view(-1,_config["max_seq_length"])
+            #segment_ids=segment_ids.view(-1,_config["max_seq_length"])
+            
+            
+            # define a new function to compute loss values for both output_modes
+            #print(input_ids.shape,input_mask.shape,segment_ids.shape)
+            #print("---------------------------")
+            logits = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None)
             
             if _config["output_mode"] == "classification":
                 loss_fct = CrossEntropyLoss()
@@ -561,13 +579,13 @@ def eval_epoch(model,dev_dataloader,optimizer,_config):
 
             input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
             
-            input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
-            input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
-            segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
+            #input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
+            #input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
+            #segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
             #print("visual:",visual.shape," acoustic:",acoustic.shape," model type:",type(model))
             #assert False
             # define a new function to compute loss values for both output_modes
-            logits = model(input_ids, segment_ids, input_mask, labels=None)
+            logits = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None) #model(input_ids, segment_ids, input_mask, labels=None)
 
 
             if _config["output_mode"] == "classification":
@@ -606,7 +624,7 @@ def test_epoch(model,data_loader,_config):
    
         for batch in tqdm(data_loader, mininterval=2,desc='  - (Validation)   ', leave=False):
             batch = tuple(t.to(_config["device"]) for t in batch)
-
+            '''
             input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
             visual = torch.squeeze(visual,1)
             acoustic = torch.squeeze(acoustic,1)
@@ -614,12 +632,23 @@ def test_epoch(model,data_loader,_config):
             #assert False
             # define a new function to compute loss values for both output_modes
             logits = model(input_ids, visual,acoustic,segment_ids, input_mask, labels=None)
+            '''
+            input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
+            
+            #input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
+            #input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
+            #segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
+            #print("visual:",visual.shape," acoustic:",acoustic.shape," model type:",type(model))
+            #assert False
+            # define a new function to compute loss values for both output_modes
+            logits = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None) #model(input_ids, segment_ids, input_mask, labels=None)
 
+            
             
             # create eval loss and other metric required by the task
             if _config["output_mode"] == "classification":
                 loss_fct = CrossEntropyLoss()
-                tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
+                tmp_eval_loss = loss_fct(logits.view(-1, _config["num_labels"]), label_ids.view(-1))
             elif _config["output_mode"] == "regression":
                 loss_fct = MSELoss()
                 tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
@@ -728,7 +757,7 @@ def train(model, train_dataloader, validation_dataloader,test_data_loader,optimi
         
         valid_losses.append(valid_loss)
         print("\nepoch:{},train_loss:{}, valid_loss:{}".format(epoch_i,train_loss,valid_loss))
-        '''
+        
         model_state_dict = model.state_dict()
         checkpoint = {
             'model': model_state_dict,
@@ -747,7 +776,7 @@ def train(model, train_dataloader, validation_dataloader,test_data_loader,optimi
                     test_accuracy = test_score_model(model,test_data_loader)
                     _run.log_scalar("test_per_epoch.acc", test_accuracy, epoch_i)
     #After the entire training is over, save the best model as artifact in the mongodb
-        '''
+        
     
 @bert_humor_ex.automain
 def main(_config):
