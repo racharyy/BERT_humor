@@ -1328,7 +1328,7 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.storyteller = nn.LSTM(768, newly_added_config['story_size'],batch_first = True) #nn.LSTMCell(config.hidden_size, newly_added_config['story_size'])####Need to add story size
-        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
         self.classifier = nn.Linear(newly_added_config['story_size'], num_labels)
         self.apply(self.init_bert_weights)
         print("Inside the Humor detection class")
@@ -1358,9 +1358,10 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
             
             _,(context_story,_) = self.storyteller(context,(h_init,c_init))
             _,(punchline_story,_) = self.storyteller(punchline,(h_init,c_init))
-            context_story, punchline_story = torch.reshape(context_story,(-1,self.newly_added_config['story_size'])), torch.reshape(punchline_story,(-1,self.newly_added_config['story_size']))
+            #context_story, punchline_story = torch.reshape(context_story,(-1,self.newly_added_config['story_size'])), torch.reshape(punchline_story,(-1,self.newly_added_config['story_size']))
             #print(punchline_story.shape,context_story.shape)
-            distance = torch.exp(-torch.norm(context_story - punchline_story,p=2,dim=1))
+            distance = torch.norm(context_story.view(-1,self.newly_added_config['story_size']) - punchline_story.view(-1,self.newly_added_config['story_size']),p=2,dim=1)
+            distance = self.tanh(distance)
             #print(distance)
             
             #print("story extraction done --------------------------")

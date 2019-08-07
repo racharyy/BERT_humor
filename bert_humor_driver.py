@@ -177,7 +177,7 @@ def cnf():
     shuffle=True
     num_workers=2
     best_model_path =  "/scratch/achattor/saved_models_from_projects/bert_humor/"+str(node_index) +"_best_model.chkpt"
-    loss_function="ll1"
+    loss_function="bce"
     save_model=True
     save_mode='best'
     d_acoustic_in=0
@@ -192,10 +192,10 @@ def cnf():
     hidden_dropout_prob=0
     beta_shift=0#####Change properly
     story_size=None
-    prototype_datasize = 200
+    prototype_datasize = 40
     has_context=None
     if prototype:
-        num_train_epochs=40
+        num_train_epochs=20
         
         
     
@@ -238,6 +238,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
        
         #(words, visual, acoustic), label, segment = example
         context, punchline, label = example ###-------Don't understand the segment properly
+        #print("label is  -----> ", label)
         #print(words,label, segment)
         #we will look at acoustic and visual later
         #words = " ".join([id_2_word[w] for w in words])
@@ -401,8 +402,15 @@ def set_up_data_loader(_config):
     with open(os.path.join(_config["dataset_location"],'humor_splitdata_sdk.pkl'), 'rb') as handle:
         all_data = pickle.load(handle)
     train_data = all_data["train"]
-    dev_data=all_data["dev"]
+    dev_data= all_data["dev"]
     test_data=all_data["test"]
+    
+    random.shuffle(train_data)
+    random.shuffle(dev_data)
+    random.shuffle(test_data)
+    # print("=============================")
+    # print(train_data)
+    # print("=============================")
     
     if(_config["prototype"]):
         train_data=train_data[:_config["prototype_datasize"]]
@@ -634,7 +642,7 @@ def test_epoch(model,data_loader,_config):
             logits = model(input_ids, visual,acoustic,segment_ids, input_mask, labels=None)
             '''
             input_ids, visual,acoustic,input_mask, segment_ids, label_ids = batch
-            
+            # print(label_ids,"----------------------")
             #input_ids = torch.reshape(input_ids, (-1,_config["max_seq_length"]))
             #input_mask = torch.reshape(input_mask, (-1,_config["max_seq_length"]))
             #segment_ids = torch.reshape(segment_ids, (-1,_config["max_seq_length"]))
@@ -689,8 +697,8 @@ def test_epoch(model,data_loader,_config):
 def test_score_model(model,test_data_loader,_config,_run):
     
     predictions,y_test = test_epoch(model,test_data_loader)
-    #print("predictions:",predictions,predictions.shape)
-    #print("ytest:",y_test,y_test.shape)
+    # print("predictions:",predictions,predictions.shape)
+    # print("ytest:",y_test,y_test.shape)
     
     mae = np.mean(np.absolute(predictions-y_test))
     #print("mae: ", mae)
@@ -705,12 +713,12 @@ def test_score_model(model,test_data_loader,_config,_run):
     #print("mult f_score: ", f_score)
     
     #As we canged the "Y" as probability, now we need to choose yes for >=0.5
-    if(_config["loss_function"]=="bce"):
-        true_label = (y_test >= 0.5)
-    elif(_config["loss_function"]=="ll1"):
-        true_label = (y_test >= 0)
-        
-    predicted_label = (predictions >= 0)
+    # if(_config["loss_function"]=="bce"):
+    #     true_label = (y_test >= 0.5)
+    # elif(_config["loss_function"]=="ll1"):
+    #     true_label = (y_test >= 0)
+    true_label = y_test    
+    predicted_label = (predictions >= 0.5)
     #print("Confusion Matrix :")
     confusion_matrix_result = confusion_matrix(true_label, predicted_label)
     #print(confusion_matrix_result)
