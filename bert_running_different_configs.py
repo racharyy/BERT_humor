@@ -37,8 +37,12 @@ dataset_specific_config = {
         "pom":{'text_indices':(0,300),'audio_indices':(300,343),'video_indices':(343,386),'max_seq_len':21},
         "youtube":{'text_indices':(0,300),'audio_indices':(300,374),'video_indices':(374,409),'max_seq_len':21},
         "MRPC":{},
-        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':6,'story_size':20,'has_context':True}
+        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':6,'story_size':20,'has_context':'punchline_with_regularizer','reg_lambda':0.01}
         }
+
+#--------------------------------------------------------------------------------------------------------
+#Possibilities for has_context----> punchline_only, punchline_with_regularizer, context_punchline_distance 
+#--------------------------------------------------------------------------------------------------------
 
 #sacred will generate a different random _seed for every experiment
 #and we will use that seed to control the randomness emanating from our libraries

@@ -154,7 +154,7 @@ def cnf():
     max_seq_length=128
     train_batch_size=12
     learning_rate=5e-5
-    num_train_epochs=40.0
+    num_train_epochs=200.0
     seed=None
     output_dir = None
     server_ip = None
@@ -194,6 +194,7 @@ def cnf():
     story_size=None
     prototype_datasize = 40
     has_context=None
+    reg_lambda =0.1
     if prototype:
         num_train_epochs=20
         
@@ -251,24 +252,24 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         tokens = [token_cur]
         #print(len(token_cur),"+++++++++++++")
         
-        if _config['has_context']:
+        #if _config['has_context']:
             
-            num_context = len(example.text_context)
-            if num_context<5:
-                cont_list = [[] for bad in range(5-num_context)]
-            else:
-                cont_list = []
-            for i in range(num_context):
-                #print(example.text_context[i])
-                contexti_token, token_inversions_cur  = tokenizer.tokenize(example.text_context[i],invertable=True)
-                # Account for [CLS] and [SEP] with "- 2"
-                if len(contexti_token) > max_seq_length - 2:
-                    contexti_token = contexti_token[:(max_seq_length - 2)]
-                cont_list.append(contexti_token)            # Modifies `tokens_a` and `tokens_b` in place so that the total
-            # length is less than the specified length.
-            # Account for [CLS], [SEP], [SEP] with "- 3"
-            #_truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
-            tokens = cont_list+tokens
+        num_context = len(example.text_context)
+        if num_context<5:
+            cont_list = [[] for bad in range(5-num_context)]
+        else:
+            cont_list = []
+        for i in range(num_context):
+            #print(example.text_context[i])
+            contexti_token, token_inversions_cur  = tokenizer.tokenize(example.text_context[i],invertable=True)
+            # Account for [CLS] and [SEP] with "- 2"
+            if len(contexti_token) > max_seq_length - 2:
+                contexti_token = contexti_token[:(max_seq_length - 2)]
+            cont_list.append(contexti_token)            # Modifies `tokens_a` and `tokens_b` in place so that the total
+        # length is less than the specified length.
+        # Account for [CLS], [SEP], [SEP] with "- 3"
+        #_truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
+        tokens = cont_list+tokens
         
 
         # The convention in BERT is:
@@ -510,11 +511,17 @@ def train_epoch(model,train_dataloader,optimizer,_config):
             # define a new function to compute loss values for both output_modes
             #print(input_ids.shape,input_mask.shape,segment_ids.shape)
             #print("---------------------------")
-            logits = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None)
+            logits, distance = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None)
             
             if _config["output_mode"] == "classification":
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, _config["num_labels"]), label_ids.view(-1))
+                if _config['has_context'] == 'punchline_with_regularizer':
+                    # print("-------------------------")
+                    # print(distance)
+                    # print("-------------------------")
+                    # print(loss)
+                    loss = loss - _config['reg_lambda']*torch.sum(distance)
             elif _config["output_mode"] == "regression":
                 loss_fct = MSELoss()
                 loss = loss_fct(logits.view(-1), label_ids.view(-1))
@@ -593,12 +600,14 @@ def eval_epoch(model,dev_dataloader,optimizer,_config):
             #print("visual:",visual.shape," acoustic:",acoustic.shape," model type:",type(model))
             #assert False
             # define a new function to compute loss values for both output_modes
-            logits = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None) #model(input_ids, segment_ids, input_mask, labels=None)
+            logits, distance = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None) #model(input_ids, segment_ids, input_mask, labels=None)
 
 
             if _config["output_mode"] == "classification":
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, _config["num_labels"]), label_ids.view(-1))
+                if _config['has_context'] == 'punchline_with_regularizer':
+                    loss = loss - _config['reg_lambda']*torch.sum(distance)
             elif _config["output_mode"] == "regression":
                 loss_fct = MSELoss()
                 loss = loss_fct(logits.view(-1), label_ids.view(-1))
@@ -649,7 +658,7 @@ def test_epoch(model,data_loader,_config):
             #print("visual:",visual.shape," acoustic:",acoustic.shape," model type:",type(model))
             #assert False
             # define a new function to compute loss values for both output_modes
-            logits = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None) #model(input_ids, segment_ids, input_mask, labels=None)
+            logits, distance = model(input_ids.view(-1,_config["max_seq_length"]), segment_ids.view(-1,_config["max_seq_length"]), input_mask.view(-1,_config["max_seq_length"]), labels=None) #model(input_ids, segment_ids, input_mask, labels=None)
 
             
             
@@ -660,15 +669,22 @@ def test_epoch(model,data_loader,_config):
             elif _config["output_mode"] == "regression":
                 loss_fct = MSELoss()
                 tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
-            
+                if _config['has_context'] == 'punchline_with_regularizer':
+                    tmp_eval_loss = tmp_eval_loss - _config['reg_lambda']*torch.sum(distance)
             eval_loss += tmp_eval_loss.mean().item()
             nb_eval_steps += 1
+            
+            #print(preds)
             if len(preds) == 0:
-                preds.append(logits.detach().cpu().numpy())
+                preds.append(logits.view(-1, _config["num_labels"]).detach().cpu().numpy())
                 all_labels.append(label_ids.detach().cpu().numpy())
             else:
+                # print("=================")
+                # print( preds[0].shape)
+                # print(logits.detach().cpu().numpy().shape)
+                # print("=================")
                 preds[0] = np.append(
-                    preds[0], logits.detach().cpu().numpy(), axis=0)
+                    preds[0], logits.view(-1, _config["num_labels"]).detach().cpu().numpy(), axis=0)
                 all_labels[0] = np.append(
                     all_labels[0], label_ids.detach().cpu().numpy(), axis=0)
         eval_loss = eval_loss / nb_eval_steps
