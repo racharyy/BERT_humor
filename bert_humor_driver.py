@@ -521,7 +521,7 @@ def train_epoch(model,train_dataloader,optimizer,_config):
                     # print(distance)
                     # print("-------------------------")
                     # print(loss)
-                    loss = loss - _config['reg_lambda']*torch.sum(distance)
+                    loss = loss + _config['reg_lambda']*torch.exp(-torch.sum(distance))
             elif _config["output_mode"] == "regression":
                 loss_fct = MSELoss()
                 loss = loss_fct(logits.view(-1), label_ids.view(-1))
@@ -607,7 +607,7 @@ def eval_epoch(model,dev_dataloader,optimizer,_config):
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, _config["num_labels"]), label_ids.view(-1))
                 if _config['has_context'] == 'punchline_with_regularizer':
-                    loss = loss - _config['reg_lambda']*torch.sum(distance)
+                    loss = loss +_config['reg_lambda']*torch.exp(-torch.sum(distance))
             elif _config["output_mode"] == "regression":
                 loss_fct = MSELoss()
                 loss = loss_fct(logits.view(-1), label_ids.view(-1))
@@ -670,7 +670,7 @@ def test_epoch(model,data_loader,_config):
                 loss_fct = MSELoss()
                 tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
                 if _config['has_context'] == 'punchline_with_regularizer':
-                    tmp_eval_loss = tmp_eval_loss - _config['reg_lambda']*torch.sum(distance)
+                    tmp_eval_loss = tmp_eval_loss + _config['reg_lambda']*torch.exp(-torch.sum(distance))
             eval_loss += tmp_eval_loss.mean().item()
             nb_eval_steps += 1
             

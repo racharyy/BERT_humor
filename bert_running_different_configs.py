@@ -14,10 +14,10 @@ from sacred import Experiment
 import numpy as np
 
 skeleton_ex = Experiment('launcher')
-from sample_example_driver import main_ex
+#from sample_example_driver import main_ex
 #works on text only
 
-from bert_mosi_driver import bert_ex
+#from bert_mosi_driver import bert_ex
 
 from bert_multi_mosi_driver import bert_multi_ex
 from bert_humor_driver import bert_humor_ex
@@ -37,7 +37,7 @@ dataset_specific_config = {
         "pom":{'text_indices':(0,300),'audio_indices':(300,343),'video_indices':(343,386),'max_seq_len':21},
         "youtube":{'text_indices':(0,300),'audio_indices':(300,374),'video_indices':(374,409),'max_seq_len':21},
         "MRPC":{},
-        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':6,'story_size':20,'has_context':'punchline_with_regularizer','reg_lambda':0.01}
+        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':6,'story_size':50,'has_context':'punchline_with_regularizer','reg_lambda':0.01}
         }
 
 #--------------------------------------------------------------------------------------------------------
