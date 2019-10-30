@@ -154,7 +154,7 @@ def cnf():
     max_seq_length=128
     train_batch_size=12
     learning_rate=5e-5
-    num_train_epochs=200.0
+    num_train_epochs=7
     seed=None
     output_dir = None
     server_ip = None

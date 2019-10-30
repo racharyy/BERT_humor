@@ -1334,7 +1334,7 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
         h_init = torch.zeros(self.newly_added_config['story_size']).to(self.newly_added_config["device"])
         c_init = torch.zeros(self.newly_added_config['story_size']).to(self.newly_added_config["device"])
         self.init_stories =  h_init, c_init
-        # self.sigmoid = 
+        self.sigmoid = nn.Sigmoid()
         self.apply(self.init_bert_weights)
         print("Inside the Humor detection class")
         #assert False
@@ -1344,17 +1344,19 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
         pooled_output = self.dropout(pooled_output)
         
         pooled_output = torch.reshape(pooled_output,(-1,6,768))
-        h_init, c_init = self.init_stories
+        h_init, c_init = copy.copy(self.init_stories)
         h_init = h_init.repeat(pooled_output.shape[0],1).unsqueeze(0)
         c_init = c_init.repeat(pooled_output.shape[0],1).unsqueeze(0)
-       
+        ph_init, pc_init = copy.copy(self.init_stories)
+        ph_init = ph_init.repeat(pooled_output.shape[0],1).unsqueeze(0)
+        pc_init = pc_init.repeat(pooled_output.shape[0],1).unsqueeze(0)
         
         context = pooled_output[:,0:5,:]
         punchline =  pooled_output[:,5,:].view(-1,1,768)
        
         
         _,(context_story,_) = self.storyteller(context,(h_init,c_init))
-        _,(punchline_story,_) = self.storyteller(punchline,(h_init,c_init))
+        _,(punchline_story,_) = self.storyteller(punchline,(ph_init,pc_init))
        
         distance = torch.norm(context_story.view(-1,self.newly_added_config['story_size']) - punchline_story.view(-1,self.newly_added_config['story_size']),p=2,dim=1)
         distance = self.tanh(distance)
@@ -1364,7 +1366,7 @@ class IncongruityBertForSequenceClassification(BertPreTrainedModel):
             logits[:,1]= 1-logits[:,1]
         else:           
             logits = self.classifier(punchline_story)       
-        logits = self.dropout(logits)
+        logits = self.dropout(self.sigmoid(logits))
         return logits,distance
        
 

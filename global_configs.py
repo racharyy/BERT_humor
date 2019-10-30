@@ -9,7 +9,7 @@ Created on Sat Mar 16 08:34:31 2019
 running_as_job_array = False
 conf_prototype=False
 conf_inference=False
-conf_url_database = 'bhg0009:27017'
+conf_url_database = 'bhg0040:27017'
 best_model_path = "/scratch/achattor/saved_models_from_projects/bert_humor"
 all_datasets_location = "/scratch/achattor"
 CACHE_DIR="/scratch/achattor/model_cache"

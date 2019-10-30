@@ -37,7 +37,7 @@ dataset_specific_config = {
         "pom":{'text_indices':(0,300),'audio_indices':(300,343),'video_indices':(343,386),'max_seq_len':21},
         "youtube":{'text_indices':(0,300),'audio_indices':(300,374),'video_indices':(374,409),'max_seq_len':21},
         "MRPC":{},
-        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':6,'story_size':50,'has_context':'punchline_with_regularizer','reg_lambda':0.01}
+        "Humor":{'output_mode':"classification",'label_list':[0,1],'dev_batch_size':22,'test_batch_size':6,'story_size':50,'has_context':'punchline_with_regularizer','reg_lambda':1}
         }
 
 #--------------------------------------------------------------------------------------------------------
@@ -64,9 +64,7 @@ def initiate_main_experiment(_config):
     #config_to_init_main=_config["skeleton_init_config"]
     dataset_location = _config["dataset_location"]
     dataset_name = dataset_location[dataset_location.rfind("/")+1:]
-    main_init_configs = {**dataset_specific_config[dataset_name],"node_index":node_index,
-
-                              "prototype":conf_prototype,'dataset_location':dataset_location,"dataset_name":dataset_name}
+    main_init_configs = {**dataset_specific_config[dataset_name],"node_index":node_index,"prototype":conf_prototype,'dataset_location':dataset_location,"dataset_name":dataset_name}
     #no usage
     GLUE_DIR="/home/echowdh2/Research_work/processed_multimodal_data/"
     TASK_NAME=dataset_name
